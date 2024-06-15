@@ -1,8 +1,7 @@
 #include "Arduino.h"
 
 //imports for the SD card writing
-#include "SDMMCBlockDevice.h"
-#include "FATFileSystem.h"
+
 #include <SPI.h>
 #include <SD.h>
 
@@ -85,7 +84,7 @@ void setup() {
   File dataFile = SD.open("data.csv", FILE_WRITE);
 
   if(dataFile){
-    dataFile.println("Time, voltage, amperage, highTemp, lowTemp, highVoltage, lowVoltage, odomoter, motorTemp, heatsinkTemp, mph, motorCurrent);
+    dataFile.println("Time, voltage, amperage, highTemp, lowTemp, highVoltage, lowVoltage, mph, odomoter, motorTemp, heatsinkTemp, motorCurrent");
     dataFile.close();
     Serial.println("header written to csv");
   }
@@ -101,8 +100,12 @@ bool bmsReceived = true; //will use these to check if we have received a new pac
 bool motorReceived = true;
 bool arrReceived = true;
 
+String motor = "";
+String bms = "";
+
 void loop() {
 
+  
   if(myUART0.available())
   {
     myUART0.readBytes(readData,24);
@@ -112,7 +115,9 @@ void loop() {
     Serial.print(packet1.highVoltage);
 
     bmsReceived = true; //reset value to be true after receiving a packet
- 
+
+    bms = "," + String(packet1.voltage) + "," + String(packet1.amperage) + "," + String(packet1.highTemp) + "," + String(packet1.lowTemp) + "," + String(packet1.highVoltage) + "," + String(packet1.lowVoltage) + ",";
+
   }
 
   if(myUART1.available())
@@ -125,6 +130,8 @@ void loop() {
     Serial.print(packet1.odometer); 
 
     motorReceived = true;
+
+    motor = String(packet1.mph) + "," + String(packet1.odometer) + "," + String(packet1.motorTemp) + "," + String(packet1.sinkTemp) + "," + String(packet1.motorCurrent);
   }
 
   if(myUART2.available())
@@ -140,23 +147,11 @@ void loop() {
   //SD Card Stuff
   if(arrReceived && motorReceived && bmsReceived){ //if all 3 are updated 
     unsigned long timestamp = millis(); //grab the time
-    String dataString = String(timestamp) + ","; //create the output string
-    String dataString += String(voltage) + ",";
-    String dataString += String(amperage) + ",";
-    String dataString += String(highTemp) + ",";
-    String dataString += String(lowTemp) + ",";
-    String dataString += String(highVoltage) + ",";
-    String dataString += String(lowVoltage) + ",";
-    String dataString += String(odometer) + ",";
-    String dataString += String(motorTemp) + ",";
-    String dataString += String(heatsinkTemp) + ",";
-    String dataString += String(mph) + ",";
-    String dataString += String(motorCurrent);
 
     arrReceived = true; //will be false in production version
     motorReceived = false; //reset the values
     bmsReceived = false;
-
+    String dataString = bms + motor;
     File dataFile = SD.open("data.csv", FILE_WRITE); //open the sd card
 
     if(dataFile){ //try to write to sd card
