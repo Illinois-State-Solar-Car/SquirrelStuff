@@ -2,8 +2,12 @@
 
 //imports for the SD card writing
 
-#include <SPI.h>
-#include <SD.h>
+#include "SDMMCBlockDevice.h"
+#include "FATFileSystem.h"
+
+SDMMCBlockDevice block_device;
+mbed::FATFileSystem fs("fs");
+FILE *fp = fopen("/fs/test.txt", "a");
 
 
 const int cardPin = 10;
@@ -56,6 +60,12 @@ struct CarData {
   float sinkTemp;
   float mph;
   float motorCurrent;
+  float onePow;
+  float twoPow;
+  float threePow;
+  float totPow;
+  float oneTemp;
+  float twoTemp;
 
 };
 
@@ -72,36 +82,36 @@ void setup() {
   myUART2.begin(9600);
   myUART3.begin(9600);
   Serial.begin(9600);
+
+  int err =  fs.mount(&block_device);
+  if (err) {
+    // Reformat if we can't mount the filesystem
+    // this should only happen on the first boot
+    Serial.println("No filesystem found, formatting... ");
+    fflush(stdout);
+    err = fs.reformat(&block_device);
+  }
+
+  
+
+
+
   Serial.print("ready to go!");
 
-  //SD card stuff
-  if(!SD.begin(cardPin)){
-    Serial.println("Card failed or not present :(");
-    return;
-  }
-  Serial.println("Card initialized");
 
-  File dataFile = SD.open("data.csv", FILE_WRITE);
-
-  if(dataFile){
-    dataFile.println("Time, voltage, amperage, highTemp, lowTemp, highVoltage, lowVoltage, mph, odomoter, motorTemp, heatsinkTemp, motorCurrent");
-    dataFile.close();
-    Serial.println("header written to csv");
-  }
-  else{
-    Serial.println("error opening data.csv");
-  }
+  
 
 }
-
-
 
 bool bmsReceived = true; //will use these to check if we have received a new packet
 bool motorReceived = true;
 bool arrReceived = true;
 
-String motor = "";
-String bms = "";
+CarData data;
+
+
+  
+
 
 void loop() {
 
@@ -112,11 +122,16 @@ void loop() {
 
     BMSData packet1 = *(BMSData*) &readData;
 
-    Serial.print(packet1.highVoltage);
+    data.voltage = packet1.voltage;
+    data.amperage = packet1.amperage;
+    data.highTemp = packet1.highTemp;
+    data.lowTemp = packet1.lowTemp;
+    data.highVoltage = packet1.highVoltage;
+    data.lowVoltage = packet1.lowVoltage;
+    //Serial.print(packet1.highVoltage);
 
     bmsReceived = true; //reset value to be true after receiving a packet
 
-    bms = "," + String(packet1.voltage) + "," + String(packet1.amperage) + "," + String(packet1.highTemp) + "," + String(packet1.lowTemp) + "," + String(packet1.highVoltage) + "," + String(packet1.lowVoltage) + ",";
 
   }
 
@@ -126,21 +141,31 @@ void loop() {
 
     MotorData packet1 = *(MotorData*) &readData;
 
-    Serial.print(packet1.motorTemp);
-    Serial.print(packet1.odometer); 
+    data.odometer = packet1.odometer;
+    data.motorTemp = packet1.motorTemp;
+    data.sinkTemp = packet1.sinkTemp;
+    data.mph = packet1.mph;
+    data.motorCurrent = packet1.motorCurrent;
+
+    //Serial.print(packet1.motorTemp);
+    //Serial.print(packet1.odometer); 
 
     motorReceived = true;
 
-    motor = String(packet1.mph) + "," + String(packet1.odometer) + "," + String(packet1.motorTemp) + "," + String(packet1.sinkTemp) + "," + String(packet1.motorCurrent);
-  }
+  } 
 
   if(myUART2.available())
   {
     myUART2.readBytes(readData,24);
 
     ArrayData packet1 = *(ArrayData*) &readData;
-    Serial.print(packet1.totPow);
-    Serial.print("hi");
+    
+    data.onePow = packet1.onePow;
+    data.twoPow = packet1.twoPow;
+    data.threePow = packet1.threePow;
+    data.totPow = packet1.totPow;
+    data.oneTemp = packet1.oneTemp;
+    data.twoTemp = packet1.twoTemp;
 
     arrReceived = true;
   }
@@ -148,19 +173,31 @@ void loop() {
   if(arrReceived && motorReceived && bmsReceived){ //if all 3 are updated 
     unsigned long timestamp = millis(); //grab the time
 
-    arrReceived = true; //will be false in production version
+    arrReceived = false; //will be false in production version
     motorReceived = false; //reset the values
     bmsReceived = false;
-    String dataString = bms + motor;
-    File dataFile = SD.open("data.csv", FILE_WRITE); //open the sd card
 
-    if(dataFile){ //try to write to sd card
-      dataFile.println(dataString);
-      dataFile.close();
-      Serial.println("Data writen to data.csv");
-    }
-    else{
-      Serial.println("Error opening data.csv");
-    }
+    //myUART3.write();
+
+    
+    
+
+   
+    fprintf(fp,String(data.voltage).c_str());
+    fprintf(fp,String(data.amperage).c_str());
+    fprintf(fp,String(data.highTemp).c_str());
+    fprintf(fp,String(data.lowTemp).c_str());
+    fprintf(fp,String(data.odometer).c_str());
+    fprintf(fp,String(data.motorTemp).c_str());
+    fprintf(fp,String(data.sinkTemp).c_str());
+    fprintf(fp,String(data.mph).c_str());
+    fprintf(fp,String(data.motorCurrent).c_str());
+    fprintf(fp,String(data.onePow).c_str());
+    fprintf(fp,String(data.twoPow).c_str());
+    fprintf(fp,String(data.threePow).c_str());
+    fprintf(fp,String(data.oneTemp).c_str());
+    fprintf(fp,String(data.twoTemp).c_str());
+    fclose(fp);
+    Serial.println("Data writen to data.csv");
   }
 }
