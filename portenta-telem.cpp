@@ -197,7 +197,6 @@ void loop() {
     fprintf(fp,String(data.threePow).c_str());
     fprintf(fp,String(data.oneTemp).c_str());
     fprintf(fp,String(data.twoTemp).c_str());
-    fclose(fp);
     Serial.println("Data writen to data.csv");
   }
 }
